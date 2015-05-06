@@ -1,19 +1,26 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+"""
+This script reads messages from socekt, parse them
+and put info to the database
+"""
+
 import MySQLdb as mdb
 import sys
 import ConfigParser
+import argparse
 import socket
 import pprint
 import time
+import thread
 
 from Parser import Parser
 
 
 class Database():
 
-    def __init__(self, configFile = 'settings.ini'):
+    def __init__(self, args, configFile = 'settings.ini'):
         config = ConfigParser.RawConfigParser()
         config.read(configFile)
         host = config.get('database', 'host')
@@ -28,10 +35,20 @@ class Database():
             sys.exit(1)
 
         print("Connected to database {0} - {1}".format(host, database))
+        if args.clean_db:
+            self.cleanDb()
 
     def __del__(self):
         if self._db_connection:
             self._db_connection.close()
+
+    def cleanDb(self):
+        query = ("TRUNCATE TABLE measurement;")
+        cur = self._db_connection.cursor()
+        cur.execute(query)
+        self._db_connection.commit()
+        print('Database cleaned')
+
 
     def addMeasurement(self, measurementDict):
             measurementDict['debug2_1'] = measurementDict['debug2'][0]
@@ -50,7 +67,6 @@ class Database():
 
             cur = self._db_connection.cursor()
             cur.execute(query, measurementDict)
-
             self._db_connection.commit()
 
 class Netcat():
@@ -65,7 +81,9 @@ class Netcat():
         print("Connected on {0}:{1}".format(host, port))
 
     def readLastLine(self):
-        data = self.sck.recv(1024)
+        data = self.sck.recv(4024)
+        print(data)
+        print(data[-1])
         return data.strip().split("\n")[-1]
 
     def __del__(self):
@@ -73,18 +91,28 @@ class Netcat():
         self.sck.shutdown(socket.SHUT_WR)
         self.sck.close()
 
+def getArgs():
+    parser = argparse.ArgumentParser(prog='update_database')
+    parser.add_argument('--clean-db', '-c', action='store_true', help='Cleans database before start')
+    args = parser.parse_args()
+
+    pprint.pprint(args)
+    return args
 
 def main():
-    db = Database()
+    args = getArgs()
+    db = Database(args)
     nc = Netcat()
     p = Parser()
     while True:
         line = nc.readLastLine()
+        print(line)
         d = p.parse_line(line)
-        if d['msg_type'] != "UKNOWN":
-            pprint.pprint(d)
-            db.addMeasurement(d)
-            time.sleep(10)
+        pprint.pprint(d)
+        if d['msg_type'] != 2: #TODO magic number, sorry :(
+            continue
+        db.addMeasurement(d)
+        time.sleep(10)
 
 
 if __name__ == "__main__":
