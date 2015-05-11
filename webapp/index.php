@@ -17,7 +17,7 @@ try {
         $measurements[$row['from']]['timestamp'] = array();
         $measurements[$row['from']]['temp'] = array();
         $measurements[$row['from']]['hum'] = array();
-        $measurements[$row['from']]['photo'][] = array();
+        $measurements[$row['from']]['photo'] = array();
 
         $stmt_measurements = $pdo->query('SELECT UNIX_TIMESTAMP(`timestamp`) as `timestamp`, `temp`, `hum`, `photo` 
                              FROM measurement WHERE `from`=' . $row['from'] . ';');
@@ -25,7 +25,7 @@ try {
             $measurements[$row['from']]['timestamp'][] = $m['timestamp'];
             $measurements[$row['from']]['temp'][] = $m['temp'];
             $measurements[$row['from']]['hum'][] = $m['hum'];
-            $measurements[$row['from']]['photo'][] = $M['photo'];
+            $measurements[$row['from']]['photo'][] = $m['photo'];
         }
     }
 
@@ -43,8 +43,9 @@ try {
                 )
         )
     )
+    xName is always a timestamp.
     */
-    function generateSeries($xName, $yName, $arrOfSensors) {
+    function generateSeries($yName, $arrOfSensors) {
         echo 'series = [';
         foreach($arrOfSensors as $sensor => $arr) {
             echo '{';
@@ -52,7 +53,7 @@ try {
             echo 'data:';
             echo '[';
             for ($i = 0; $i < count($arr['timestamp']) ; $i++) {
-                echo '['.$arr['timestamp'][$i].'000,'.$arr['temp'][$i] . '],';
+                echo '['.$arr['timestamp'][$i].'000,'.$arr[$yName][$i] . '],';
             }
             echo ']';
             echo '},';
@@ -64,11 +65,11 @@ try {
 <head>
 <!-- jquery -->
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+<!-- jquery UI-->
+<script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
 <!-- Latest compiled and minified CSS -->
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
-<!-- Optional theme -->
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap-theme.min.css">
-<!-- Latest compiled and minified JavaScript -->
+<!-- Latest compiled and minified bootstrap JavaScript -->
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
 
 <!-- Highcharts -->
@@ -77,26 +78,25 @@ try {
 <script src="http://code.highcharts.com/modules/exporting.js"></script>
 <script>
 $(function () {
-    var <?php generateSeries("timestamp","temp", $measurements); ?>
-    render(series, "#temperature");
+    $( "#tabs" ).tabs();
+    var <?php generateSeries("temp", $measurements); ?>
+    render(series, "#temperature", "Temperature", "temperature [*C]");
 
-    <?php generateSeries("timestamp","hum", $measurements); ?>
-    render(series, "#photo");
+    <?php generateSeries("hum", $measurements); ?>
+    render(series, "#humidity", "Humidity", "humidity [%]");
 
-    <?php generateSeries("timestamp","photo", $measurements); ?>
-    render(series, "#humidity");
+    <?php generateSeries("photo", $measurements); ?>
+    render(series, "#photo", "Photo", "photo [lux]");
 });
 
-function render(series_, renderTo_) {
+function render(series_, renderTo_, title_, yAxisTitle_) {
     $(renderTo_).highcharts({
         chart: {
-            type: 'spline'
+            type: 'spline',
+            zoomType: 'x'
         },
         title: {
-            text: 'Temperature, Humidity and Photo for sensor <?php ?>'
-        },
-        subtitle: {
-            text: ''
+            text: title_
         },
         xAxis: {
             type: 'datetime',
@@ -110,7 +110,7 @@ function render(series_, renderTo_) {
         },
         yAxis: {
             title: {
-                text: 'Temp in Celcius, Humidity in %'
+                text: yAxisTitle_
             },
             min: 0
         },
@@ -126,6 +126,9 @@ function render(series_, renderTo_) {
                 }
             }
         },
+        credits: {
+            enabled: false
+        },
 
         series: series_
     });
@@ -133,10 +136,23 @@ function render(series_, renderTo_) {
 </script>
 </head>
 <body>
+<div id="tabs">
+  <ul>
+    <li class="btn btn-default"><a href="#tabs-1">Temperature</a></li>
+    <li class="btn btn-default"><a href="#tabs-2">Humidity</a></li>
+    <li class="btn btn-default"><a href="#tabs-3">Photo</a></li>
+  </ul>
+  <div id="tabs-1">
+    <div id="temperature"></div>
+  </div>
+  <div id="tabs-2">
+    <div id="humidity"></div>
+  </div>
+  <div id="tabs-3">
+    <div id="photo"></div>
+  </div>
+</div>
 
-<div id="temperature"></div>
-<div id="humidity"></div>
-<div id="photo"></div>
 
 </body>
 </html>
